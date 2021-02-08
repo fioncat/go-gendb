@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fioncat/go-gendb/build"
 	"github.com/fioncat/go-gendb/compile/scan/ssql"
 	"github.com/fioncat/go-gendb/compile/token"
 	"github.com/fioncat/go-gendb/database/rdb"
@@ -171,9 +172,12 @@ func Do(arg *Arg) error {
 
 	tt.Start("scan")
 	workTasks := make([][]*checkTask, len(paths))
-	wp := wpool.New().Total(len(paths)).Action(scanWorker)
+	wp := wpool.New(build.N_WORKERS, len(paths))
 	for idx := range paths {
-		wp.SubmitArgs(idx, paths, ms, filter, workTasks)
+		idx := idx
+		wp.Submit(func() error {
+			return scanWorker(idx, paths, ms, filter, workTasks)
+		})
 	}
 
 	if err := wp.Wait(); err != nil {
@@ -192,9 +196,12 @@ func Do(arg *Arg) error {
 
 	tt.Start("check")
 	results := make([]*checkResult, len(tasks))
-	wp = wpool.New().Total(len(tasks)).Action(checkWorker)
+	wp = wpool.New(build.N_WORKERS, len(tasks))
 	for idx := range tasks {
-		wp.SubmitArgs(idx, results, tasks)
+		idx := idx
+		wp.Submit(func() error {
+			return checkWorker(idx, results, tasks)
+		})
 	}
 	if err := wp.Wait(); err != nil {
 		return errors.Trace("check", err)

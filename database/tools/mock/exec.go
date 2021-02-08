@@ -70,17 +70,7 @@ func writeFile(arg *Arg, epochs [][]string, connKey string) error {
 }
 
 func exec(mute bool, epochs [][]string, nWorker int) error {
-	wp := wpool.New().Worker(nWorker).Total(len(epochs))
-	wp.Action(func(idx int) error {
-		sqls := epochs[idx]
-		err := rdb.Get().RunBatch(sqls)
-		if err != nil {
-			return err
-		}
-		atomic.AddInt32(&total, 1)
-		return nil
-	})
-
+	wp := wpool.New(nWorker, len(epochs))
 	var reporter *reporter
 	if !mute {
 		initTotal(len(epochs))
@@ -89,7 +79,16 @@ func exec(mute bool, epochs [][]string, nWorker int) error {
 	}
 
 	for idx := range epochs {
-		wp.SubmitArgs(idx)
+		idx := idx
+		wp.Submit(func() error {
+			sqls := epochs[idx]
+			err := rdb.Get().RunBatch(sqls)
+			if err != nil {
+				return err
+			}
+			atomic.AddInt32(&total, 1)
+			return nil
+		})
 	}
 
 	err := wp.Wait()

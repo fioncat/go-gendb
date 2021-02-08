@@ -103,11 +103,13 @@ func Do(arg *Arg) error {
 	}
 
 	start := time.Now()
-	wp := wpool.New().Total(result.Epoch).
-		Action(mockWorker).Worker(result.MockWorker)
+	wp := wpool.New(result.MockWorker, result.Epoch)
 
 	for idx := 0; idx < result.Epoch; idx++ {
-		wp.SubmitArgs(idx, result, epochs)
+		idx := idx
+		wp.Submit(func() error {
+			return mockWorker(idx, result, epochs)
+		})
 	}
 
 	err = wp.Wait()

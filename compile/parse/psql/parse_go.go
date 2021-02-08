@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fioncat/go-gendb/build"
 	"github.com/fioncat/go-gendb/compile/mediate"
 	"github.com/fioncat/go-gendb/compile/scan/sgo"
 	"github.com/fioncat/go-gendb/compile/scan/ssql"
@@ -287,22 +288,24 @@ func _interface(
 
 	// Scan sql files
 	sqlM := make(sqlMap)
-	wp := wpool.New().Total(len(sqlPaths))
-	wp.Action(ssqlWorker)
+	wp := wpool.New(build.N_WORKERS, len(sqlPaths))
 	for _, path := range sqlPaths {
 		path := path
-		wp.SubmitArgs(path, sqlM, dir)
+		wp.Submit(func() error {
+			return ssqlWorker(path, sqlM, dir)
+		})
 	}
 	if err := wp.Wait(); err != nil {
 		return errors.Trace("read sql file", err)
 	}
 
 	// Parse methods
-	wp = wpool.New().Total(len(inter.Methods))
-	wp.Action(parseMethodWorker)
+	wp = wpool.New(build.N_WORKERS, len(inter.Methods))
 	for _, m := range inter.Methods {
 		m := m
-		wp.SubmitArgs(&m, inter.Name, or, sr, sqlM)
+		wp.Submit(func() error {
+			return parseMethodWorker(&m, inter.Name, or, sr, sqlM)
+		})
 	}
 
 	if err := wp.Wait(); err != nil {

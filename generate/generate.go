@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fioncat/go-gendb/build"
 	"github.com/fioncat/go-gendb/compile/mediate"
 	"github.com/fioncat/go-gendb/compile/parse"
 	"github.com/fioncat/go-gendb/compile/scan/sgo"
@@ -199,10 +200,12 @@ func batch(root string, confData []byte) error {
 	}
 
 	tt.Start("generate")
-	wp := wpool.New().Total(len(paths))
-	wp.Action(genWorker)
+	wp := wpool.New(build.N_WORKERS, len(paths))
 	for _, path := range paths {
-		wp.SubmitArgs(path, confData)
+		path := path
+		wp.Submit(func() error {
+			return genWorker(path, confData)
+		})
 	}
 
 	if err := wp.Wait(); err != nil {
